@@ -69,6 +69,7 @@ export const createCheckout = async (req: Request, res: Response): Promise<void>
         pending: `${frontendUrl}/carrito`
       },
       auto_return: "approved",
+      purpose: "wallet_purchase",
       external_reference: order.id,
       notification_url: `${baseUrl}/api/orders/webhook`
     };
