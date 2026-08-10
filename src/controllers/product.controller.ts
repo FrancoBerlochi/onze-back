@@ -54,6 +54,7 @@ export const updateProduct = async (req: Request, res: Response) => {
     });
     res.json(updatedProduct);
   } catch (error) {
+    console.error("Prisma Error in updateProduct:", error);
     res.status(500).json({ error: 'Error updating product' });
   }
 };
