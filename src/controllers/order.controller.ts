@@ -193,7 +193,7 @@ export const getOrders = async (req: Request, res: Response): Promise<void> => {
 
 export const updateOrderStatus = async (req: Request, res: Response): Promise<any> => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
     const { status } = req.body;
     
     // Si cambia a CANCELLED, debemos reponer el stock
