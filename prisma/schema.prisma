@@ -1,0 +1,64 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum ProductCategory {
+  Nacional
+  Internacional
+}
+
+enum ProductType {
+  Titular
+  Suplente
+  Tercera
+  Especial
+}
+
+model Product {
+  id        String   @id @default(uuid())
+  name      String
+  price     Float
+  category  ProductCategory
+  type      ProductType
+  image     String
+  featured  Boolean  @default(false)
+  stockS    Int      @default(0)
+  stockM    Int      @default(0)
+  stockL    Int      @default(0)
+  stockXL   Int      @default(0)
+  stockXXL  Int      @default(0)
+  stock3XL  Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model AdminUser {
+  id        String   @id @default(uuid())
+  username  String   @unique
+  password  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Order {
+  id              String   @id @default(uuid())
+  productId       String
+  customerEmail   String
+  customerName    String
+  amount          Float
+  status          String   @default("pending") // pending, paid, failed
+  mpPreferenceId  String?
+  mpPaymentId     String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
