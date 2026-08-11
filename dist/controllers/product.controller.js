@@ -1,13 +1,14 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.deleteProduct = exports.updateProduct = exports.createProduct = exports.getProductById = exports.getProducts = void 0;
-const prisma_1 = require("../generated/prisma");
+require("dotenv/config");
+const client_1 = require("@prisma/client");
 const pg_1 = require("pg");
 const adapter_pg_1 = require("@prisma/adapter-pg");
 const connectionString = process.env.PRISMA_DATABASE_URL || process.env.DATABASE_URL;
 const pool = new pg_1.Pool({ connectionString });
 const adapter = new adapter_pg_1.PrismaPg(pool);
-const prisma = new prisma_1.PrismaClient({ adapter });
+const prisma = new client_1.PrismaClient({ adapter });
 const getProducts = async (req, res) => {
     try {
         const products = await prisma.product.findMany();
@@ -58,6 +59,7 @@ const updateProduct = async (req, res) => {
         res.json(updatedProduct);
     }
     catch (error) {
+        console.error("Prisma Error in updateProduct:", error);
         res.status(500).json({ error: 'Error updating product' });
     }
 };
