@@ -1,12 +1,10 @@
 import { Router } from 'express';
-import { receiveWebhook, getOrders } from '../controllers/mercadopago.controller';
+import { getOrders } from '../controllers/mercadopago.controller';
 import { verifyToken } from '../middlewares/auth.middleware';
 
 const router = Router();
 
-// Endpoint público para que Mercado Pago envíe notificaciones
-router.post('/webhook', receiveWebhook);
-
+// El endpoint público para notificaciones de MP ahora está en order.routes.ts (/api/orders/webhook)
 // Endpoint protegido para leer las órdenes en el admin panel
 router.get('/orders', verifyToken, getOrders);
 
