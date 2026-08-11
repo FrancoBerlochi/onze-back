@@ -154,6 +154,11 @@ export const mpWebhook = async (req: Request, res: Response): Promise<void> => {
               const isTestMode = senderEmail === 'onboarding@resend.dev';
               const customerEmailToSend = isTestMode ? adminEmail : existingOrder.customerEmail;
 
+              const itemsTotal = existingOrder.items.reduce((acc, item) => acc + (item.price * item.quantity), 0);
+              const shippingCost = existingOrder.total - itemsTotal;
+              
+              let shippingText = shippingCost > 0 ? `$${shippingCost}` : '¡Gratis!';
+
               // Items del pedido formateados para HTML
               const itemsHtml = existingOrder.items.map(item => 
                 `<tr>
@@ -162,6 +167,15 @@ export const mpWebhook = async (req: Request, res: Response): Promise<void> => {
                   <td style="padding: 10px; border-bottom: 1px solid #eeeeee; text-align: right;">$${item.price}</td>
                 </tr>`
               ).join('');
+              
+              // Agregar fila de envío
+              const shippingHtml = `
+                <tr>
+                  <td style="padding: 10px; border-bottom: 1px solid #eeeeee;">Envío</td>
+                  <td style="padding: 10px; border-bottom: 1px solid #eeeeee; text-align: center;">1</td>
+                  <td style="padding: 10px; border-bottom: 1px solid #eeeeee; text-align: right; color: ${shippingCost === 0 ? '#27ae60' : 'inherit'}; font-weight: ${shippingCost === 0 ? 'bold' : 'normal'};">${shippingText}</td>
+                </tr>
+              `;
 
               // ----------------------------------------------------
               // EMAIL PARA EL CLIENTE
@@ -186,6 +200,7 @@ export const mpWebhook = async (req: Request, res: Response): Promise<void> => {
                       </thead>
                       <tbody>
                         ${itemsHtml}
+                        ${shippingHtml}
                       </tbody>
                       <tfoot>
                         <tr>
@@ -201,7 +216,9 @@ export const mpWebhook = async (req: Request, res: Response): Promise<void> => {
                       Teléfono: ${existingOrder.customerPhone}
                     </div>
                     
-                    <p style="font-size: 14px; color: #666; margin-top: 30px; text-align: center;">Ante cualquier duda, contactanos a nuestro WhatsApp.<br>¡Gracias por elegirnos!</p>
+                    <p style="font-size: 14px; color: #666; margin-top: 30px; text-align: center;">Ante cualquier duda, contactanos a nuestro WhatsApp.<br>
+                      <a href="https://wa.me/5493413109231" style="display: inline-block; margin-top: 10px; background-color: #25D366; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; font-weight: bold;">Escribinos al WhatsApp</a>
+                    </p>
                   </div>
                 </div>
               `;
@@ -231,6 +248,7 @@ export const mpWebhook = async (req: Request, res: Response): Promise<void> => {
                   <h3>Productos:</h3>
                   <table style="width: 100%; border-collapse: collapse;">
                     ${itemsHtml}
+                    ${shippingHtml}
                   </table>
                   
                   <p style="margin-top: 20px;">
