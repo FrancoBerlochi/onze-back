@@ -207,7 +207,7 @@ export const mpWebhook = async (req: Request, res: Response): Promise<void> => {
               `;
 
               await resend.emails.send({
-                from: \`Onze Camisetas <\${senderEmail}>\`,
+                from: `Onze Camisetas <${senderEmail}>`,
                 to: [customerEmailToSend],
                 subject: '¡Tu pedido está confirmado! ⚽ - 11 ONZE',
                 html: customerHtml
@@ -240,9 +240,9 @@ export const mpWebhook = async (req: Request, res: Response): Promise<void> => {
               `;
 
               await resend.emails.send({
-                from: \`Sistema Onze <\${senderEmail}>\`,
+                from: `Sistema Onze <${senderEmail}>`,
                 to: [adminEmail],
-                subject: \`💰 Nueva Venta - $\${existingOrder.total}\`,
+                subject: `💰 Nueva Venta - $${existingOrder.total}`,
                 html: adminHtml
               });
               
