@@ -146,21 +146,106 @@ export const mpWebhook = async (req: Request, res: Response): Promise<void> => {
           // 3. Enviar correos con Resend (desactivado si no hay API key real)
           if (process.env.RESEND_API_KEY) {
             try {
-              // Mail para el cliente
+              const senderEmail = process.env.EMAIL_SENDER || 'onboarding@resend.dev';
+              const adminEmail = process.env.ADMIN_EMAIL || existingOrder.customerEmail;
+              
+              // Evitar error de Resend si no hay dominio verificado y mandamos a un mail random
+              // Resend solo deja enviar a tu propio mail si usás onboarding@resend.dev
+              const isTestMode = senderEmail === 'onboarding@resend.dev';
+              const customerEmailToSend = isTestMode ? adminEmail : existingOrder.customerEmail;
+
+              // Items del pedido formateados para HTML
+              const itemsHtml = existingOrder.items.map(item => 
+                `<tr>
+                  <td style="padding: 10px; border-bottom: 1px solid #eeeeee;">Camiseta (Talle ${item.size})${item.customization ? ` - Estampe: ${item.customization}` : ''}</td>
+                  <td style="padding: 10px; border-bottom: 1px solid #eeeeee; text-align: center;">${item.quantity}</td>
+                  <td style="padding: 10px; border-bottom: 1px solid #eeeeee; text-align: right;">$${item.price}</td>
+                </tr>`
+              ).join('');
+
+              // ----------------------------------------------------
+              // EMAIL PARA EL CLIENTE
+              // ----------------------------------------------------
+              const customerHtml = `
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #333; border: 1px solid #eaeaea; border-radius: 10px; overflow: hidden;">
+                  <div style="background-color: #0B0B0B; padding: 20px; text-align: center;">
+                    <h1 style="color: #F5A623; margin: 0; font-size: 24px; text-transform: uppercase;">11 ONZE CAMISETAS</h1>
+                  </div>
+                  <div style="padding: 30px;">
+                    <h2 style="color: #111; margin-top: 0;">¡Hola ${existingOrder.customerName}! ⚽</h2>
+                    <p style="font-size: 16px; line-height: 1.5;">Confirmamos el pago de tu compra. Ya estamos preparando tu pedido para despacharlo lo antes posible.</p>
+                    
+                    <h3 style="margin-top: 30px; border-bottom: 2px solid #F5A623; padding-bottom: 5px;">Resumen de tu pedido #${existingOrder.id.slice(0,8)}</h3>
+                    <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+                      <thead>
+                        <tr>
+                          <th style="text-align: left; padding: 10px; background-color: #f9f9f9;">Producto</th>
+                          <th style="text-align: center; padding: 10px; background-color: #f9f9f9;">Cant.</th>
+                          <th style="text-align: right; padding: 10px; background-color: #f9f9f9;">Precio</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        ${itemsHtml}
+                      </tbody>
+                      <tfoot>
+                        <tr>
+                          <td colspan="2" style="text-align: right; padding: 15px 10px; font-weight: bold;">TOTAL ABONADO:</td>
+                          <td style="text-align: right; padding: 15px 10px; font-weight: bold; font-size: 18px; color: #F5A623;">$${existingOrder.total}</td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                    
+                    <div style="background-color: #f5f5f5; padding: 15px; border-radius: 8px; font-size: 14px;">
+                      <strong>Datos de Envío:</strong><br>
+                      ${existingOrder.address}, ${existingOrder.city} (${existingOrder.zipCode})<br>
+                      Teléfono: ${existingOrder.customerPhone}
+                    </div>
+                    
+                    <p style="font-size: 14px; color: #666; margin-top: 30px; text-align: center;">Ante cualquier duda, contactanos a nuestro WhatsApp.<br>¡Gracias por elegirnos!</p>
+                  </div>
+                </div>
+              `;
+
               await resend.emails.send({
-                from: 'Onze Camisetas <ventas@tu-dominio.com>', // Necesitás verificar un dominio en Resend
-                to: [existingOrder.customerEmail],
-                subject: '¡Tu pedido está confirmado! ⚽',
-                html: `<h1>Gracias por tu compra, ${existingOrder.customerName}</h1><p>Estamos preparando tu pedido. Pronto nos pondremos en contacto para el envío.</p>`
+                from: \`Onze Camisetas <\${senderEmail}>\`,
+                to: [customerEmailToSend],
+                subject: '¡Tu pedido está confirmado! ⚽ - 11 ONZE',
+                html: customerHtml
               });
 
-              // Mail para el dueño
+              // ----------------------------------------------------
+              // EMAIL PARA EL ADMIN (DUEÑO)
+              // ----------------------------------------------------
+              const adminHtml = `
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #333;">
+                  <h2 style="color: #27ae60;">💰 ¡Nueva Venta Ingresada!</h2>
+                  <p>El cliente <strong>${existingOrder.customerName}</strong> acaba de realizar un pago exitoso.</p>
+                  
+                  <div style="background: #f9f9f9; padding: 15px; border-left: 4px solid #27ae60; margin-bottom: 20px;">
+                    <strong>ID Pedido:</strong> ${existingOrder.id}<br>
+                    <strong>Total cobrado:</strong> $${existingOrder.total}<br>
+                    <strong>Email:</strong> ${existingOrder.customerEmail}<br>
+                    <strong>Teléfono:</strong> ${existingOrder.customerPhone}
+                  </div>
+                  
+                  <h3>Productos:</h3>
+                  <table style="width: 100%; border-collapse: collapse;">
+                    ${itemsHtml}
+                  </table>
+                  
+                  <p style="margin-top: 20px;">
+                    <a href="${process.env.FRONTEND_URL || 'http://localhost:3000'}/admin/mercadopago" style="background: #0B0B0B; color: #F5A623; padding: 10px 20px; text-decoration: none; border-radius: 5px; font-weight: bold;">Ver en Panel de Admin</a>
+                  </p>
+                </div>
+              `;
+
               await resend.emails.send({
-                from: 'Sistema Onze <ventas@tu-dominio.com>',
-                to: ['tu-email-personal@gmail.com'], // Cambiar por tu mail
-                subject: '💰 ¡Nueva Venta Ingresada!',
-                html: `<h1>Nueva venta de $${existingOrder.total}</h1><p>El cliente ${existingOrder.customerName} acaba de pagar su pedido. Revisá el panel de administración.</p>`
+                from: \`Sistema Onze <\${senderEmail}>\`,
+                to: [adminEmail],
+                subject: \`💰 Nueva Venta - $\${existingOrder.total}\`,
+                html: adminHtml
               });
+              
             } catch (emailError) {
               console.error("Error enviando emails:", emailError);
             }
