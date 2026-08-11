@@ -5,20 +5,14 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.login = void 0;
 require("dotenv/config");
-const client_1 = require("@prisma/client");
-const pg_1 = require("pg");
-const adapter_pg_1 = require("@prisma/adapter-pg");
 const bcrypt_1 = __importDefault(require("bcrypt"));
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
-const connectionString = process.env.PRISMA_DATABASE_URL || process.env.DATABASE_URL;
-const pool = new pg_1.Pool({ connectionString });
-const adapter = new adapter_pg_1.PrismaPg(pool);
-const prisma = new client_1.PrismaClient({ adapter });
+const db_1 = __importDefault(require("../config/db"));
 const JWT_SECRET = process.env.JWT_SECRET || 'super_secret_key_11_onze';
 const login = async (req, res) => {
     try {
         const { username, password } = req.body;
-        const user = await prisma.adminUser.findUnique({ where: { username } });
+        const user = await db_1.default.adminUser.findUnique({ where: { username } });
         if (!user) {
             res.status(401).json({ error: 'Usuario o contraseña incorrectos' });
             return;

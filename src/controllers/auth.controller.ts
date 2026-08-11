@@ -1,15 +1,8 @@
 import 'dotenv/config';
 import { Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
-import { Pool } from 'pg';
-import { PrismaPg } from '@prisma/adapter-pg';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
-
-const connectionString = process.env.PRISMA_DATABASE_URL || process.env.DATABASE_URL;
-const pool = new Pool({ connectionString });
-const adapter = new PrismaPg(pool);
-const prisma = new PrismaClient({ adapter });
+import prisma from '../config/db';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'super_secret_key_11_onze';
 

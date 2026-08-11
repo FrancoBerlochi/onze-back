@@ -1,18 +1,15 @@
 "use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.updateSettings = exports.getSettings = void 0;
-const client_1 = require("@prisma/client");
-const pg_1 = require("pg");
-const adapter_pg_1 = require("@prisma/adapter-pg");
-const connectionString = process.env.PRISMA_DATABASE_URL || process.env.DATABASE_URL;
-const pool = new pg_1.Pool({ connectionString });
-const adapter = new adapter_pg_1.PrismaPg(pool);
-const prisma = new client_1.PrismaClient({ adapter });
+const db_1 = __importDefault(require("../config/db"));
 const getSettings = async (req, res) => {
     try {
-        let settings = await prisma.storeSettings.findFirst();
+        let settings = await db_1.default.storeSettings.findFirst();
         if (!settings) {
-            settings = await prisma.storeSettings.create({
+            settings = await db_1.default.storeSettings.create({
                 data: {
                     shippingCost: 0,
                     freeShippingThreshold: 0
@@ -30,9 +27,9 @@ exports.getSettings = getSettings;
 const updateSettings = async (req, res) => {
     try {
         const { shippingCost, freeShippingThreshold } = req.body;
-        let settings = await prisma.storeSettings.findFirst();
+        let settings = await db_1.default.storeSettings.findFirst();
         if (settings) {
-            settings = await prisma.storeSettings.update({
+            settings = await db_1.default.storeSettings.update({
                 where: { id: settings.id },
                 data: {
                     shippingCost: Number(shippingCost) || 0,
@@ -41,7 +38,7 @@ const updateSettings = async (req, res) => {
             });
         }
         else {
-            settings = await prisma.storeSettings.create({
+            settings = await db_1.default.storeSettings.create({
                 data: {
                     shippingCost: Number(shippingCost) || 0,
                     freeShippingThreshold: Number(freeShippingThreshold) || 0

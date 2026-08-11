@@ -1,16 +1,13 @@
 "use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.updateOrderStatus = exports.getOrders = exports.mpWebhook = exports.createCheckout = void 0;
-const client_1 = require("@prisma/client");
-const pg_1 = require("pg");
-const adapter_pg_1 = require("@prisma/adapter-pg");
 const mercadopago_1 = require("mercadopago");
 const resend_1 = require("resend");
 require("dotenv/config");
-const connectionString = process.env.PRISMA_DATABASE_URL || process.env.DATABASE_URL;
-const pool = new pg_1.Pool({ connectionString });
-const adapter = new adapter_pg_1.PrismaPg(pool);
-const prisma = new client_1.PrismaClient({ adapter });
+const db_1 = __importDefault(require("../config/db"));
 const resend = new resend_1.Resend(process.env.RESEND_API_KEY || 're_dummy_123');
 // Configuración de Mercado Pago
 const mpClient = new mercadopago_1.MercadoPagoConfig({
@@ -20,7 +17,7 @@ const createCheckout = async (req, res) => {
     try {
         const { items, customer, total } = req.body;
         // 1. Guardar la orden en la base de datos (Estado PENDING)
-        const order = await prisma.order.create({
+        const order = await db_1.default.order.create({
             data: {
                 customerName: customer.name,
                 customerEmail: customer.email,
@@ -73,7 +70,7 @@ const createCheckout = async (req, res) => {
             const result = await preference.create({ body });
             init_point = result.init_point;
             // Guardar el preference ID por las dudas
-            await prisma.order.update({
+            await db_1.default.order.update({
                 where: { id: order.id },
                 data: { mpPreferenceId: result.id }
             });
@@ -102,13 +99,13 @@ const mpWebhook = async (req, res) => {
             if (paymentInfo.status === 'approved' && paymentInfo.external_reference) {
                 const orderId = paymentInfo.external_reference;
                 // Evitar procesar dos veces el mismo webhook
-                const existingOrder = await prisma.order.findUnique({
+                const existingOrder = await db_1.default.order.findUnique({
                     where: { id: orderId },
                     include: { items: true }
                 });
                 if (existingOrder && existingOrder.status === 'PENDING') {
                     // 1. Marcar como ACCEPTED
-                    await prisma.order.update({
+                    await db_1.default.order.update({
                         where: { id: orderId },
                         data: {
                             status: 'ACCEPTED',
@@ -119,7 +116,7 @@ const mpWebhook = async (req, res) => {
                     for (const item of existingOrder.items) {
                         const sizeField = `stock${item.size}`;
                         // Usamos raw o update de manera dinámica (ej: stockM: { decrement: quantity })
-                        await prisma.product.update({
+                        await db_1.default.product.update({
                             where: { id: item.productId },
                             data: {
                                 [sizeField]: {
@@ -131,19 +128,111 @@ const mpWebhook = async (req, res) => {
                     // 3. Enviar correos con Resend (desactivado si no hay API key real)
                     if (process.env.RESEND_API_KEY) {
                         try {
-                            // Mail para el cliente
+                            const senderEmail = process.env.EMAIL_SENDER || 'onboarding@resend.dev';
+                            const adminEmail = process.env.ADMIN_EMAIL || existingOrder.customerEmail;
+                            // Evitar error de Resend si no hay dominio verificado y mandamos a un mail random
+                            // Resend solo deja enviar a tu propio mail si usás onboarding@resend.dev
+                            const isTestMode = senderEmail === 'onboarding@resend.dev';
+                            const customerEmailToSend = isTestMode ? adminEmail : existingOrder.customerEmail;
+                            const itemsTotal = existingOrder.items.reduce((acc, item) => acc + (item.price * item.quantity), 0);
+                            const shippingCost = existingOrder.total - itemsTotal;
+                            let shippingText = shippingCost > 0 ? `$${shippingCost}` : '¡Gratis!';
+                            // Items del pedido formateados para HTML
+                            const itemsHtml = existingOrder.items.map(item => `<tr>
+                  <td style="padding: 10px; border-bottom: 1px solid #eeeeee;">Camiseta (Talle ${item.size})${item.customization ? ` - Estampe: ${item.customization}` : ''}</td>
+                  <td style="padding: 10px; border-bottom: 1px solid #eeeeee; text-align: center;">${item.quantity}</td>
+                  <td style="padding: 10px; border-bottom: 1px solid #eeeeee; text-align: right;">$${item.price}</td>
+                </tr>`).join('');
+                            // Agregar fila de envío
+                            const shippingHtml = `
+                <tr>
+                  <td style="padding: 10px; border-bottom: 1px solid #eeeeee;">Envío</td>
+                  <td style="padding: 10px; border-bottom: 1px solid #eeeeee; text-align: center;">1</td>
+                  <td style="padding: 10px; border-bottom: 1px solid #eeeeee; text-align: right; color: ${shippingCost === 0 ? '#27ae60' : 'inherit'}; font-weight: ${shippingCost === 0 ? 'bold' : 'normal'};">${shippingText}</td>
+                </tr>
+              `;
+                            // ----------------------------------------------------
+                            // EMAIL PARA EL CLIENTE
+                            // ----------------------------------------------------
+                            const customerHtml = `
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #333; border: 1px solid #eaeaea; border-radius: 10px; overflow: hidden;">
+                  <div style="background-color: #0B0B0B; padding: 20px; text-align: center;">
+                    <h1 style="color: #F5A623; margin: 0; font-size: 24px; text-transform: uppercase;">11 ONZE CAMISETAS</h1>
+                  </div>
+                  <div style="padding: 30px;">
+                    <h2 style="color: #111; margin-top: 0;">¡Hola ${existingOrder.customerName}! ⚽</h2>
+                    <p style="font-size: 16px; line-height: 1.5;">Confirmamos el pago de tu compra. Ya estamos preparando tu pedido para despacharlo lo antes posible.</p>
+                    
+                    <h3 style="margin-top: 30px; border-bottom: 2px solid #F5A623; padding-bottom: 5px;">Resumen de tu pedido #${existingOrder.id.slice(0, 8)}</h3>
+                    <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+                      <thead>
+                        <tr>
+                          <th style="text-align: left; padding: 10px; background-color: #f9f9f9;">Producto</th>
+                          <th style="text-align: center; padding: 10px; background-color: #f9f9f9;">Cant.</th>
+                          <th style="text-align: right; padding: 10px; background-color: #f9f9f9;">Precio</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        ${itemsHtml}
+                        ${shippingHtml}
+                      </tbody>
+                      <tfoot>
+                        <tr>
+                          <td colspan="2" style="text-align: right; padding: 15px 10px; font-weight: bold;">TOTAL ABONADO:</td>
+                          <td style="text-align: right; padding: 15px 10px; font-weight: bold; font-size: 18px; color: #F5A623;">$${existingOrder.total}</td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                    
+                    <div style="background-color: #f5f5f5; padding: 15px; border-radius: 8px; font-size: 14px;">
+                      <strong>Datos de Envío:</strong><br>
+                      ${existingOrder.address}, ${existingOrder.city} (${existingOrder.zipCode})<br>
+                      Teléfono: ${existingOrder.customerPhone}
+                    </div>
+                    
+                    <p style="font-size: 14px; color: #666; margin-top: 30px; text-align: center;">Ante cualquier duda, contactanos a nuestro WhatsApp.<br>
+                      <a href="https://wa.me/5493413109231" style="display: inline-block; margin-top: 10px; background-color: #25D366; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; font-weight: bold;">Escribinos al WhatsApp</a>
+                    </p>
+                  </div>
+                </div>
+              `;
                             await resend.emails.send({
-                                from: 'Onze Camisetas <ventas@tu-dominio.com>', // Necesitás verificar un dominio en Resend
-                                to: [existingOrder.customerEmail],
-                                subject: '¡Tu pedido está confirmado! ⚽',
-                                html: `<h1>Gracias por tu compra, ${existingOrder.customerName}</h1><p>Estamos preparando tu pedido. Pronto nos pondremos en contacto para el envío.</p>`
+                                from: `Onze Camisetas <${senderEmail}>`,
+                                to: [customerEmailToSend],
+                                subject: '¡Tu pedido está confirmado! ⚽ - 11 ONZE',
+                                html: customerHtml
                             });
-                            // Mail para el dueño
+                            // ----------------------------------------------------
+                            // EMAIL PARA EL ADMIN (DUEÑO)
+                            // ----------------------------------------------------
+                            const adminHtml = `
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #333;">
+                  <h2 style="color: #27ae60;">💰 ¡Nueva Venta Ingresada!</h2>
+                  <p>El cliente <strong>${existingOrder.customerName}</strong> acaba de realizar un pago exitoso.</p>
+                  
+                  <div style="background: #f9f9f9; padding: 15px; border-left: 4px solid #27ae60; margin-bottom: 20px;">
+                    <strong>ID Pedido:</strong> ${existingOrder.id}<br>
+                    <strong>Total cobrado:</strong> $${existingOrder.total}<br>
+                    <strong>Email:</strong> ${existingOrder.customerEmail}<br>
+                    <strong>Teléfono:</strong> ${existingOrder.customerPhone}
+                  </div>
+                  
+                  <h3>Productos:</h3>
+                  <table style="width: 100%; border-collapse: collapse;">
+                    ${itemsHtml}
+                    ${shippingHtml}
+                  </table>
+                  
+                  <p style="margin-top: 20px;">
+                    <a href="${process.env.FRONTEND_URL || 'http://localhost:3000'}/admin/mercadopago" style="background: #0B0B0B; color: #F5A623; padding: 10px 20px; text-decoration: none; border-radius: 5px; font-weight: bold;">Ver en Panel de Admin</a>
+                  </p>
+                </div>
+              `;
                             await resend.emails.send({
-                                from: 'Sistema Onze <ventas@tu-dominio.com>',
-                                to: ['tu-email-personal@gmail.com'], // Cambiar por tu mail
-                                subject: '💰 ¡Nueva Venta Ingresada!',
-                                html: `<h1>Nueva venta de $${existingOrder.total}</h1><p>El cliente ${existingOrder.customerName} acaba de pagar su pedido. Revisá el panel de administración.</p>`
+                                from: `Sistema Onze <${senderEmail}>`,
+                                to: [adminEmail],
+                                subject: `💰 Nueva Venta - $${existingOrder.total}`,
+                                html: adminHtml
                             });
                         }
                         catch (emailError) {
@@ -161,7 +250,7 @@ const mpWebhook = async (req, res) => {
 exports.mpWebhook = mpWebhook;
 const getOrders = async (req, res) => {
     try {
-        const orders = await prisma.order.findMany({
+        const orders = await db_1.default.order.findMany({
             orderBy: { createdAt: 'desc' },
             include: {
                 items: {
@@ -184,7 +273,7 @@ const updateOrderStatus = async (req, res) => {
         const id = req.params.id;
         const { status } = req.body;
         // Si cambia a CANCELLED, debemos reponer el stock
-        const existingOrder = await prisma.order.findUnique({
+        const existingOrder = await db_1.default.order.findUnique({
             where: { id },
             include: { items: true }
         });
@@ -195,7 +284,7 @@ const updateOrderStatus = async (req, res) => {
             // Reponer stock
             for (const item of existingOrder.items) {
                 const sizeField = `stock${item.size}`;
-                await prisma.product.update({
+                await db_1.default.product.update({
                     where: { id: item.productId },
                     data: {
                         [sizeField]: {
@@ -205,7 +294,7 @@ const updateOrderStatus = async (req, res) => {
                 });
             }
         }
-        const updatedOrder = await prisma.order.update({
+        const updatedOrder = await db_1.default.order.update({
             where: { id },
             data: { status }
         });

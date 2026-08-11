@@ -1,15 +1,8 @@
 import { Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
-import { Pool } from 'pg';
-import { PrismaPg } from '@prisma/adapter-pg';
 import { MercadoPagoConfig, Preference, Payment } from 'mercadopago';
 import { Resend } from 'resend';
 import 'dotenv/config';
-
-const connectionString = process.env.PRISMA_DATABASE_URL || process.env.DATABASE_URL;
-const pool = new Pool({ connectionString });
-const adapter = new PrismaPg(pool);
-const prisma = new PrismaClient({ adapter });
+import prisma from '../config/db';
 const resend = new Resend(process.env.RESEND_API_KEY || 're_dummy_123');
 
 // Configuración de Mercado Pago

@@ -1,14 +1,7 @@
 import 'dotenv/config';
 import { Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
-import { Pool } from 'pg';
-import { PrismaPg } from '@prisma/adapter-pg';
 import { Resend } from 'resend';
-
-const connectionString = process.env.PRISMA_DATABASE_URL || process.env.DATABASE_URL;
-const pool = new Pool({ connectionString });
-const adapter = new PrismaPg(pool);
-const prisma = new PrismaClient({ adapter });
+import prisma from '../config/db';
 
 // Reemplazar 'tu_api_key' por la verdadera desde las variables de entorno
 const resend = new Resend(process.env.RESEND_API_KEY || 're_test123');
