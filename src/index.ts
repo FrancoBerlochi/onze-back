@@ -7,7 +7,6 @@ dotenv.config();
 import authRoutes from './routes/auth.routes';
 import productRoutes from './routes/product.routes';
 import orderRoutes from './routes/order.routes';
-import mercadopagoRoutes from './routes/mercadopago.routes';
 import settingsRoutes from './routes/settings.routes';
 
 const app = express();
@@ -19,7 +18,6 @@ app.use(express.json());
 app.use('/api/auth', authRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/orders', orderRoutes);
-app.use('/api/mercadopago', mercadopagoRoutes);
 app.use('/api/settings', settingsRoutes);
 
 app.get('/api/health', (req, res) => {
